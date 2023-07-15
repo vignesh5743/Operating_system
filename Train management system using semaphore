@@ -1,0 +1,95 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <gtk/gtk.h>
+
+#define NUM_TRAINS 5
+
+sem_t crossingSemaphore;
+int trainCount = 0;
+
+void* trainArriving(void* trainID) {
+    int id = *((int*)trainID);
+
+    // Train arriving at the crossing
+    printf("Train %d is approaching the railway crossing.\n", id);
+
+    // Request permission to cross
+    sem_wait(&crossingSemaphore);
+    printf("Train %d has entered the crossing.\n", id);
+
+    // Simulate crossing time
+    sleep(2);
+
+    // Train has crossed
+    printf("Train %d has crossed the railway crossing.\n", id);
+
+    // Release the crossing
+    sem_post(&crossingSemaphore);
+
+    pthread_exit(NULL);
+}
+
+static void on_button_clicked(GtkWidget *widget, gpointer data) {
+    // Get the number of trains from the user
+    int num_trains = atoi(gtk_entry_get_text(GTK_ENTRY(data)));
+
+    pthread_t trains[num_trains];
+    int trainIDs[num_trains];
+
+    // Initialize the crossing semaphore
+    sem_init(&crossingSemaphore, 0, 1);
+
+    // Create threads for each train
+    for (int i = 0; i < num_trains; i++) {
+        trainIDs[i] = i + 1;
+        pthread_create(&trains[i], NULL, trainArriving, &trainIDs[i]);
+    }
+
+    // Wait for all train threads to finish
+    for (int i = 0; i < num_trains; i++) {
+        pthread_join(trains[i], NULL);
+    }
+
+    // Destroy the crossing semaphore
+    sem_destroy(&crossingSemaphore);
+}
+
+int main(int argc, char* argv[]) {
+    GtkWidget *window;
+    GtkWidget *grid;
+    GtkWidget *label;
+    GtkWidget *entry;
+    GtkWidget *button;
+
+    gtk_init(&argc, &argv);
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(window), "Railway Crossing System");
+    gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+    gtk_widget_set_size_request(window, 300, 100);
+
+    grid = gtk_grid_new();
+    gtk_container_add(GTK_CONTAINER(window), grid);
+
+    label = gtk_label_new("Enter number of trains:");
+    gtk_grid_attach(GTK_GRID(grid), label, 0, 0, 1, 1);
+
+    entry = gtk_entry_new();
+    gtk_grid_attach(GTK_GRID(grid), entry, 1, 0, 1, 1);
+
+    button = gtk_button_new_with_label("Start");
+    g_signal_connect(button, "clicked", G_CALLBACK(on_button_clicked), entry);
+    gtk_grid_attach(GTK_GRID(grid), button, 0, 1, 2, 1);
+
+    g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+
+    gtk_widget_show_all(window);
+
+    gtk_main();
+
+    return 0;
+}
+
